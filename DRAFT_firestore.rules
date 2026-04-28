@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Pillar 2: Validation Blueprint (The "Anti-Update-Gap")
+    function isValidFieldReport(data) {
+      return data.keys().hasAll(['location', 'resourceNeeded', 'urgency', 'peopleAffected', 'status', 'createdAt', 'userId']) &&
+             data.keys().size() <= 10 &&
+             data.location is string && data.location.size() <= 200 &&
+             data.resourceNeeded in ['food', 'water', 'medicine', 'shelter', 'other'] &&
+             data.urgency in ['low', 'medium', 'high'] &&
+             data.peopleAffected is number &&
+             data.status in ['pending', 'processed'] &&
+             data.createdAt is timestamp &&
+             data.userId == request.auth.uid;
+    }
+
+    // fieldReports/{reportId}
+    match /fieldReports/{reportId} {
+      allow list: if isSignedIn(); // Allowing all signed in users to see the dashboard, but realistically this should be restricted to NGO members.
+      allow get: if isSignedIn();
+      
+      allow create: if isSignedIn() &&
+                       isValidId(reportId) &&
+                       isValidFieldReport(incoming()) &&
+                       incoming().createdAt == request.time;
+      
+      allow update: if isSignedIn() &&
+                       isOwner(existing().userId) &&
+                       isValidFieldReport(incoming()) &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action: Update status/details
+                         incoming().diff(existing()).affectedKeys().hasOnly(['location', 'resourceNeeded', 'urgency', 'peopleAffected', 'status'])
+                       );
+                       
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+  }
+}

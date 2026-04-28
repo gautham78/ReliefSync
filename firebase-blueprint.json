@@ -1,0 +1,28 @@
+{
+  "entities": {
+    "Report": {
+      "title": "Field Report",
+      "description": "A digitised report from handwritten notes in the field.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "rawText": { "type": "string" },
+        "location": { "type": "string" },
+        "resource": { "type": "string", "enum": ["Food", "Water", "Medicine", "Shelter"] },
+        "urgency": { "type": "string", "enum": ["Low", "Medium", "High"] },
+        "people": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["location", "resource", "urgency", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "reports/{reportId}": {
+      "schema": "Report",
+      "description": "Collection of all field reports digitized from notes."
+    }
+  }
+}
